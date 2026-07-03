@@ -1,11 +1,14 @@
 from app.schemas.recommendation_schema import (
     MissingIngredientAiRequest,
     MissingIngredientAiResponse,
+    MealIngredientCheckAiRequest,
+    MealIngredientCheckAiResponse,
+    MealIngredientItem,
     RecommendMealAiItem,
     RecommendMealAiRequest,
     RecommendMealAiResponse,
 )
-from app.utils.normalizer import tokenize_ingredient_text
+from app.utils.normalizer import normalize_text, tokenize_ingredient_text
 
 
 def recommend_meals(request: RecommendMealAiRequest) -> RecommendMealAiResponse:
@@ -52,3 +55,50 @@ def suggest_missing_ingredients(request: MissingIngredientAiRequest) -> MissingI
     owned = tokenize_ingredient_text(request.userIngredients)
     missing = sorted(required - owned)
     return MissingIngredientAiResponse(recipeId=request.recipeId, missingIngredients=missing)
+
+
+def check_meal_ingredients(request: MealIngredientCheckAiRequest) -> MealIngredientCheckAiResponse:
+    fridge_by_id = {
+        item.ingredientId: item
+        for item in request.fridgeIngredients
+        if item.ingredientId
+    }
+    fridge_names = {
+        normalize_text(item.name)
+        for item in request.fridgeIngredients
+        if normalize_text(item.name)
+    }
+
+    available: list[MealIngredientItem] = []
+    missing: list[MealIngredientItem] = []
+
+    for ingredient in request.requiredIngredients:
+        has_item = False
+
+        if ingredient.ingredientId:
+            fridge_item = fridge_by_id.get(ingredient.ingredientId)
+            has_item = fridge_item is not None
+
+        if not has_item:
+            normalized_name = normalize_text(ingredient.name)
+            if normalized_name:
+                has_item = normalized_name in fridge_names
+
+        if has_item:
+            available.append(ingredient)
+        else:
+            missing.append(ingredient)
+
+    note = (
+        "You already have all required ingredients for this meal."
+        if not missing
+        else f"You are missing {len(missing)} ingredient(s) for this meal."
+    )
+
+    return MealIngredientCheckAiResponse(
+        mealId=request.meal.mealId,
+        mealName=request.meal.mealName,
+        availableIngredients=available,
+        missingIngredients=missing,
+        note=note,
+    )

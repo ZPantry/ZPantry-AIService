@@ -47,3 +47,30 @@ class MissingIngredientAiRequest(BaseModel):
 class MissingIngredientAiResponse(BaseModel):
     recipeId: str
     missingIngredients: list[str] = Field(default_factory=list)
+
+
+class MealIngredientItem(BaseModel):
+    ingredientId: str | None = None
+    name: str
+    quantity: float | None = None
+    unit: str | None = None
+
+
+class MealInfo(BaseModel):
+    mealId: str
+    mealName: str
+
+
+class MealIngredientCheckAiRequest(BaseModel):
+    userId: str
+    meal: MealInfo
+    requiredIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    fridgeIngredients: list[MealIngredientItem] = Field(default_factory=list)
+
+
+class MealIngredientCheckAiResponse(BaseModel):
+    mealId: str
+    mealName: str
+    availableIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    missingIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    note: str | None = None

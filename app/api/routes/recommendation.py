@@ -4,10 +4,16 @@ from app.schemas.common_schema import ApiResponse
 from app.schemas.recommendation_schema import (
     MissingIngredientAiRequest,
     MissingIngredientAiResponse,
+    MealIngredientCheckAiRequest,
+    MealIngredientCheckAiResponse,
     RecommendMealAiRequest,
     RecommendMealAiResponse,
 )
-from app.services.recommendation_service import recommend_meals, suggest_missing_ingredients
+from app.services.recommendation_service import (
+    check_meal_ingredients,
+    recommend_meals,
+    suggest_missing_ingredients,
+)
 
 router = APIRouter()
 
@@ -28,3 +34,13 @@ async def suggest_missing(
     data = suggest_missing_ingredients(request)
     return ApiResponse(success=True, message="ok", data=data, errors=None)
 
+
+@router.post(
+    "/check-meal-ingredients",
+    response_model=ApiResponse[MealIngredientCheckAiResponse],
+)
+async def check_meal(
+    request: MealIngredientCheckAiRequest,
+) -> ApiResponse[MealIngredientCheckAiResponse]:
+    data = check_meal_ingredients(request)
+    return ApiResponse(success=True, message="ok", data=data, errors=None)
