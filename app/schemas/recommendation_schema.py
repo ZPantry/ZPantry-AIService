@@ -74,3 +74,24 @@ class MealIngredientCheckAiResponse(BaseModel):
     availableIngredients: list[MealIngredientItem] = Field(default_factory=list)
     missingIngredients: list[MealIngredientItem] = Field(default_factory=list)
     note: str | None = None
+
+
+class TodayMenuCompletionAiMeal(BaseModel):
+    mealId: str
+    mealName: str
+
+
+class TodayMenuCompletionAiRequest(BaseModel):
+    userId: str
+    meal: TodayMenuCompletionAiMeal
+    requiredIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    pantryIngredients: list[MealIngredientItem] = Field(default_factory=list)
+
+
+class TodayMenuCompletionAiResponse(BaseModel):
+    mealId: str
+    mealName: str
+    availableIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    missingIngredients: list[MealIngredientItem] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    note: str | None = None

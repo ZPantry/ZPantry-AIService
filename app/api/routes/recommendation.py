@@ -6,11 +6,14 @@ from app.schemas.recommendation_schema import (
     MissingIngredientAiResponse,
     MealIngredientCheckAiRequest,
     MealIngredientCheckAiResponse,
+    TodayMenuCompletionAiRequest,
+    TodayMenuCompletionAiResponse,
     RecommendMealAiRequest,
     RecommendMealAiResponse,
 )
 from app.services.recommendation_service import (
     check_meal_ingredients,
+    check_today_menu_completion,
     recommend_meals,
     suggest_missing_ingredients,
 )
@@ -43,4 +46,15 @@ async def check_meal(
     request: MealIngredientCheckAiRequest,
 ) -> ApiResponse[MealIngredientCheckAiResponse]:
     data = check_meal_ingredients(request)
+    return ApiResponse(success=True, message="ok", data=data, errors=None)
+
+
+@router.post(
+    "/check-today-menu-completion",
+    response_model=ApiResponse[TodayMenuCompletionAiResponse],
+)
+async def check_today_menu_completion_route(
+    request: TodayMenuCompletionAiRequest,
+) -> ApiResponse[TodayMenuCompletionAiResponse]:
+    data = check_today_menu_completion(request)
     return ApiResponse(success=True, message="ok", data=data, errors=None)

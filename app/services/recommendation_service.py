@@ -4,6 +4,8 @@ from app.schemas.recommendation_schema import (
     MealIngredientCheckAiRequest,
     MealIngredientCheckAiResponse,
     MealIngredientItem,
+    TodayMenuCompletionAiRequest,
+    TodayMenuCompletionAiResponse,
     RecommendMealAiItem,
     RecommendMealAiRequest,
     RecommendMealAiResponse,
@@ -100,5 +102,70 @@ def check_meal_ingredients(request: MealIngredientCheckAiRequest) -> MealIngredi
         mealName=request.meal.mealName,
         availableIngredients=available,
         missingIngredients=missing,
+        note=note,
+    )
+
+
+def check_today_menu_completion(
+    request: TodayMenuCompletionAiRequest,
+) -> TodayMenuCompletionAiResponse:
+    pantry_by_id = {
+        item.ingredientId: item
+        for item in request.pantryIngredients
+        if item.ingredientId
+    }
+    pantry_names = {
+        normalize_text(item.name)
+        for item in request.pantryIngredients
+        if normalize_text(item.name)
+    }
+
+    available: list[MealIngredientItem] = []
+    missing: list[MealIngredientItem] = []
+    warnings: list[str] = []
+
+    for ingredient in request.requiredIngredients:
+        has_item = False
+
+        if ingredient.ingredientId:
+            pantry_item = pantry_by_id.get(ingredient.ingredientId)
+            has_item = pantry_item is not None
+
+        if not has_item:
+            normalized_name = normalize_text(ingredient.name)
+            if normalized_name:
+                has_item = normalized_name in pantry_names
+
+        if has_item and ingredient.unit:
+            matched = None
+            if ingredient.ingredientId:
+                matched = pantry_by_id.get(ingredient.ingredientId)
+            if matched and matched.unit and normalize_text(matched.unit) != normalize_text(ingredient.unit):
+                warnings.append(
+                    f"Unit mismatch for {ingredient.name}: pantry={matched.unit}, recipe={ingredient.unit}."
+                )
+                missing.append(ingredient)
+                continue
+
+        if has_item:
+            available.append(ingredient)
+        else:
+            missing.append(ingredient)
+
+    if warnings:
+        note = "Meal can be completed, but there are unit warnings to review."
+    else:
+        note = (
+            "You already have all required ingredients for this meal."
+            if not missing
+            else f"You are missing {len(missing)} ingredient(s) for this meal."
+        )
+
+    return TodayMenuCompletionAiResponse(
+        mealId=request.meal.mealId,
+        mealName=request.meal.mealName,
+        availableIngredients=available,
+        missingIngredients=missing,
+        warnings=warnings,
         note=note,
     )
