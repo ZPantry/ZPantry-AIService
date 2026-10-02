@@ -14,14 +14,12 @@ logger = logging.getLogger("uvicorn.error")
 @app.middleware("http")
 async def log_request_metadata(request: Request, call_next):
     """Diagnose service integration without recording request content or secrets."""
-    body = await request.body()
     logger.info(
-        "AI request: method=%s path=%s content_type=%s content_length=%s body_bytes=%s",
+        "AI request: method=%s path=%s content_type=%s content_length=%s",
         request.method,
         request.url.path,
         request.headers.get("content-type"),
         request.headers.get("content-length"),
-        len(body),
     )
     return await call_next(request)
 
