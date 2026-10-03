@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
 
 class IngredientItem(BaseModel):
@@ -35,6 +36,71 @@ class RecommendMealAiItem(BaseModel):
 
 class RecommendMealAiResponse(BaseModel):
     items: list[RecommendMealAiItem] = Field(default_factory=list)
+
+
+class RecommendationContractModel(BaseModel):
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class RecommendationProfileV2(RecommendationContractModel):
+    targetKcalPerMeal: float | None = None
+    proteinGPerMeal: float | None = None
+    diet: str | None = None
+    goals: list[str] = Field(default_factory=list)
+    maxCookTimeMinutes: int | None = None
+
+
+class PantryIngredientV2(RecommendationContractModel):
+    ingredientId: str
+    name: str
+    expiringSoon: bool = False
+
+
+class CandidateRecipeV2(RecommendationContractModel):
+    recipeId: str
+    recipeName: str
+    mainIngredients: list[str] = Field(default_factory=list)
+    kcalPerServing: float | None = None
+    proteinG: float | None = None
+    cookTimeMinutes: int | None = None
+    pantryMatchRatio: float = 0.0
+    missingIngredients: list[str] = Field(default_factory=list)
+    expiringSoonUsed: bool = False
+    descriptionSnippet: str = Field(default="", max_length=300)
+
+
+class RecommendMealV2Request(RecommendationContractModel):
+    requestId: str
+    contractVersion: str
+    mode: str
+    profile: RecommendationProfileV2
+    pantryIngredients: list[PantryIngredientV2] = Field(default_factory=list)
+    candidateRecipes: list[CandidateRecipeV2] = Field(default_factory=list, max_length=15)
+    topK: int = Field(default=5, ge=1, le=20)
+    withAdvice: bool = True
+
+
+class RecommendationComponentsV2(RecommendationContractModel):
+    pantryMatch: float | None = None
+    nutritionFit: float | None = None
+    preference: float | None = None
+    practical: float | None = None
+
+
+class RecommendMealV2Item(RecommendationContractModel):
+    recipeId: str
+    rank: int
+    score: float
+    components: RecommendationComponentsV2
+    advice: str | None = None
+
+
+class RecommendMealV2Response(RecommendationContractModel):
+    requestId: str
+    modelVersion: str = "rank-v1"
+    llmApplied: bool = False
+    items: list[RecommendMealV2Item] = Field(default_factory=list)
+    usage: dict[str, int] = Field(default_factory=lambda: {"tokens": 0, "latencyMs": 0})
 
 
 class MissingIngredientAiRequest(BaseModel):

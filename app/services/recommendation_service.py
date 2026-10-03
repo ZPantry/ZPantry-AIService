@@ -9,7 +9,12 @@ from app.schemas.recommendation_schema import (
     RecommendMealAiItem,
     RecommendMealAiRequest,
     RecommendMealAiResponse,
+    RecommendMealV2Request,
+    RecommendMealV2Response,
+    RecommendMealV2Item,
+    RecommendationComponentsV2,
 )
+import time
 from app.utils.normalizer import normalize_text, tokenize_ingredient_text
 
 
@@ -50,6 +55,30 @@ def recommend_meals(request: RecommendMealAiRequest) -> RecommendMealAiResponse:
         item.rank = index
 
     return RecommendMealAiResponse(items=ranked_items)
+
+
+def recommend_meals_v2(request: RecommendMealV2Request) -> RecommendMealV2Response:
+    """Pure deterministic ranker. It never invents recipes, nutrition, or missing ingredients."""
+    started = time.perf_counter()
+    weighted: list[tuple[float, RecommendMealV2Item]] = []
+    for recipe in request.candidateRecipes:
+        components: dict[str, float] = {}
+        if request.mode != "PROFILE_BASED":
+            components["pantryMatch"] = min(1.0, max(0.0, recipe.pantryMatchRatio + (0.05 if recipe.expiringSoonUsed else 0.0)))
+        if recipe.kcalPerServing is not None and request.profile.targetKcalPerMeal:
+            target = request.profile.targetKcalPerMeal
+            components["nutritionFit"] = max(0.0, 1.0 - abs(recipe.kcalPerServing - target) / max(target, 1.0))
+        if recipe.cookTimeMinutes is not None and request.profile.maxCookTimeMinutes:
+            limit = request.profile.maxCookTimeMinutes
+            components["practical"] = 1.0 if recipe.cookTimeMinutes <= limit else max(0.0, 1.0 - (recipe.cookTimeMinutes - limit) / max(limit, 1))
+        components["preference"] = 1.0 if "QUICK_COOK" in request.profile.goals and components.get("practical") == 1.0 else 0.5
+        score = sum(components.values()) / len(components)
+        weighted.append((score, RecommendMealV2Item(recipeId=recipe.recipeId, rank=0, score=round(score, 4),
+            components=RecommendationComponentsV2(**components), advice=None)))
+    ranked = sorted(weighted, key=lambda value: (-value[0], value[1].recipeId))[:request.topK]
+    items = [item.model_copy(update={"rank": index}) for index, (_, item) in enumerate(ranked, start=1)]
+    return RecommendMealV2Response(requestId=request.requestId, items=items,
+        usage={"tokens": 0, "latencyMs": round((time.perf_counter() - started) * 1000)})
 
 
 def suggest_missing_ingredients(request: MissingIngredientAiRequest) -> MissingIngredientAiResponse:
