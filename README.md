@@ -33,6 +33,18 @@ Tat ca API tra ve wrapper thong nhat:
 }
 ```
 
+## Image analysis contract
+
+`POST /ai/analyze-image` accepts multipart field `image` and optional `expectedType` (`AUTO`,
+`RECEIPT`, or `FOOD_IMAGE`). It uses Gemini JSON mode plus a closed response schema and validates
+the returned JSON before responding. Image text is explicitly treated as data, not instructions.
+
+The response adds `imageType`, `imageTypeConfidence`, `imageQuality`, optional `reason`, warnings,
+and at most 50 extracted ingredients. Existing `/ai/analyze-receipt` and
+`/ai/recognize-food-image` routes remain deprecated compatibility aliases returning their original
+`data.items` shape. The Java backend remains responsible for catalog matching, quota, and pantry
+persistence.
+
 ## API Purpose
 
 ### GET `/ai/health`
