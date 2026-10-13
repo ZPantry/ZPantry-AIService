@@ -184,6 +184,11 @@ async def call(model: str, content: bytes, mime: str, expected: str, key: str, t
         if response.status_code == 400:
             log.warning("gemini_call event=optional_config_rejected model=%s", model)
             response = await client.post(url, json=_payload(content, mime, expected, {}))
+        if response.status_code == 400:
+            # Some Gemini model revisions reject a strict responseSchema although JSON mode is supported.
+            # Keep extraction available and enforce the same schema in normalize() after the response.
+            log.warning("gemini_call event=response_schema_rejected model=%s fallback=json_mode", model)
+            response = await client.post(url, json=_payload(content, mime, expected, {}, strict_schema=False))
     response.raise_for_status()
     try:
         return normalize(json.loads(response.json()["candidates"][0]["content"]["parts"][0]["text"]), expected)
@@ -191,8 +196,10 @@ async def call(model: str, content: bytes, mime: str, expected: str, key: str, t
         raise InvalidOutput() from exception
 
 
-def _payload(content: bytes, mime: str, expected: str, optional: dict[str, Any]) -> dict[str, Any]:
-    generation = {"responseMimeType": "application/json", "responseSchema": SCHEMA, "temperature": .1, "maxOutputTokens": 4096, **optional}
+def _payload(content: bytes, mime: str, expected: str, optional: dict[str, Any], strict_schema: bool = True) -> dict[str, Any]:
+    generation = {"responseMimeType": "application/json", "maxOutputTokens": 4096, **optional}
+    if strict_schema:
+        generation["responseSchema"] = SCHEMA
     return {"systemInstruction": {"parts": [{"text": prompt_for(expected)}]}, "contents": [{"parts": [{"inline_data": {"mime_type": mime, "data": base64.b64encode(content).decode()}}]}], "generationConfig": generation}
 
 
