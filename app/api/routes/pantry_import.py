@@ -72,7 +72,7 @@ def config() -> tuple[tuple[str, ...], str | None, int, int, int, int, str, str]
             os.getenv("GEMINI_HARD_MODEL", "").strip() or None,
             int(os.getenv("GEMINI_TIMEOUT_MS", "25000")), int(os.getenv("GEMINI_MAX_CONCURRENCY", "5")),
             int(os.getenv("GEMINI_QUEUE_TIMEOUT_MS", "3000")), int(os.getenv("GEMINI_CACHE_TTL_SECONDS", "600")),
-            os.getenv("GEMINI_THINKING_LEVEL", "low").strip().upper(),
+            os.getenv("GEMINI_THINKING_LEVEL", "low").strip().lower(),
             os.getenv("GEMINI_MEDIA_RESOLUTION", "MEDIA_RESOLUTION_HIGH").strip().upper())
 
 

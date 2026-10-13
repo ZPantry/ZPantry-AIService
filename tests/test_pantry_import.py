@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from app.api.routes.pantry_import import _needs_hard_model, call_with_retry, normalize, prompt_for
+from app.api.routes.pantry_import import _needs_hard_model, call_with_retry, config, normalize, prompt_for
 
 
 def food_payload():
@@ -18,6 +18,9 @@ class PantryImportSchemaTest(unittest.TestCase):
     def test_selects_a_separate_prompt_for_each_mode(self):
         self.assertIn("fish", prompt_for("FOOD_IMAGE"))
         self.assertIn("receipt", prompt_for("RECEIPT").lower())
+
+    def test_gemini_three_thinking_level_uses_the_rest_api_spelling(self):
+        self.assertEqual("low", config()[-2])
 
     def test_server_assigns_image_type_and_preserves_food_metadata(self):
         result = normalize(food_payload(), "FOOD_IMAGE")
