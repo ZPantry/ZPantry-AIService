@@ -178,6 +178,7 @@ async def call_with_retry(model: str, content: bytes, mime: str, expected: str, 
 
 async def call(model: str, content: bytes, mime: str, expected: str, key: str, timeout: int, thinking: str, resolution: str) -> dict[str, Any]:
     optional = {"thinkingConfig": {"thinkingLevel": thinking}, "mediaResolution": resolution}
+    strict_schema = True
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
     async with httpx.AsyncClient(timeout=httpx.Timeout(timeout / 1000, connect=5)) as client:
         response = await client.post(url, json=_payload(content, mime, expected, optional))
@@ -189,9 +190,10 @@ async def call(model: str, content: bytes, mime: str, expected: str, key: str, t
             # Keep extraction available and enforce the same schema in normalize() after the response.
             log.warning("gemini_call event=response_schema_rejected model=%s fallback=json_mode", model)
             response = await client.post(url, json=_payload(content, mime, expected, {}, strict_schema=False))
+            strict_schema = False
     response.raise_for_status()
     try:
-        return normalize(json.loads(response.json()["candidates"][0]["content"]["parts"][0]["text"]), expected)
+        return normalize(json.loads(response.json()["candidates"][0]["content"]["parts"][0]["text"]), expected, lenient=not strict_schema)
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exception:
         raise InvalidOutput() from exception
 
@@ -203,13 +205,13 @@ def _payload(content: bytes, mime: str, expected: str, optional: dict[str, Any],
     return {"systemInstruction": {"parts": [{"text": prompt_for(expected)}]}, "contents": [{"parts": [{"inline_data": {"mime_type": mime, "data": base64.b64encode(content).decode()}}]}], "generationConfig": generation}
 
 
-def normalize(value: object, expected: str) -> dict[str, Any]:
+def normalize(value: object, expected: str, lenient: bool = False) -> dict[str, Any]:
     if not isinstance(value, dict) or not isinstance(value.get("ingredients"), list): raise ValueError()
     reason = value.get("reason")
     if reason is not None and reason not in REASONS: raise ValueError()
     merged: dict[tuple[str, str | None], dict[str, Any]] = {}
     for row in value["ingredients"]:
-        item = _normalize_item(row, expected)
+        item = _normalize_item(row, expected, lenient)
         if item is None: continue
         key = (item["canonicalHint"], item["unit"])
         if key not in merged or item["confidence"] > merged[key]["confidence"]: merged[key] = item
@@ -218,21 +220,26 @@ def normalize(value: object, expected: str) -> dict[str, Any]:
     return {"imageType": expected, "ingredients": rows, "warnings": [], "reason": reason}
 
 
-def _normalize_item(row: object, expected: str) -> dict[str, Any] | None:
+def _normalize_item(row: object, expected: str, lenient: bool) -> dict[str, Any] | None:
     if not isinstance(row, dict) or not isinstance(row.get("rawName"), str) or not row["rawName"].strip(): raise ValueError()
     raw_name = row["rawName"].strip()
     if expected == "RECEIPT" and GARBAGE_RECEIPT.search(raw_name): return None
     hint = _canonical_hint(row.get("canonicalHint") or raw_name)
     category, source = row.get("category"), row.get("quantitySource")
+    if lenient and category not in CATEGORIES: category = "OTHER_FOOD"
+    if lenient and source not in QUANTITY_SOURCES: source = "COUNTED" if isinstance(row.get("quantity"), (int, float)) else "NONE"
     if category not in CATEGORIES or source not in QUANTITY_SOURCES: raise ValueError()
     state = row.get("state", "UNKNOWN")
+    if lenient and state not in STATES: state = "UNKNOWN"
     if state not in STATES: raise ValueError()
     unit = row.get("unit")
+    if lenient and unit not in UNITS: unit = None
     if unit is not None and unit not in UNITS: raise ValueError()
     quantity = row.get("quantity")
     if not isinstance(quantity, (int, float)) or isinstance(quantity, bool) or quantity <= 0: quantity = None
     if source == "NONE": quantity = None
     confidence = row.get("confidence")
+    if lenient and (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)): confidence = .5
     if not isinstance(confidence, (int, float)) or isinstance(confidence, bool): raise ValueError()
     flags = (["LOW_CONFIDENCE"] if float(confidence) < .6 else [])
     if (expected == "FOOD_IMAGE" and source == "PRINTED") or (expected == "RECEIPT" and source == "COUNTED"): flags.append("ANOMALY")

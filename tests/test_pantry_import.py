@@ -48,6 +48,11 @@ class PantryImportSchemaTest(unittest.TestCase):
         with self.assertRaises(ValueError): normalize({"ingredients": []}, "FOOD_IMAGE")
         self.assertEqual([], normalize({"reason": "BLURRY", "ingredients": []}, "FOOD_IMAGE")["ingredients"])
 
+    def test_json_mode_fallback_normalizes_missing_optional_provider_fields(self):
+        result = normalize({"ingredients": [{"rawName": "cá", "canonicalHint": "cá"}]}, "FOOD_IMAGE", lenient=True)
+        self.assertEqual("OTHER_FOOD", result["ingredients"][0]["category"])
+        self.assertIn("LOW_CONFIDENCE", result["ingredients"][0]["flags"])
+
     def test_hard_model_is_used_for_a_small_result(self):
         self.assertTrue(_needs_hard_model(normalize(food_payload(), "FOOD_IMAGE")))
 
