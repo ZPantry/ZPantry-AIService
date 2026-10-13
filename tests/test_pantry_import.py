@@ -1,41 +1,55 @@
+import asyncio
 import unittest
+from unittest.mock import AsyncMock, patch
 
-from app.api.routes.pantry_import import ProviderOutputError, _validate_and_normalize
+import httpx
+
+from app.api.routes.pantry_import import _needs_hard_model, call_with_retry, normalize, prompt_for
 
 
 def food_payload():
-    return {
-        "imageType": "FOOD_IMAGE", "imageTypeConfidence": 0.9, "imageQuality": "GOOD",
-        "reason": None, "warnings": [], "ingredients": [{
-            "rawName": "Trứng gà", "canonicalHint": "trứng gà", "category": "DAIRY_EGG",
-            "quantity": 6, "unit": "piece", "quantitySource": "COUNTED",
-            "state": "FRESH", "confidence": 0.95,
-        }],
-    }
+    return {"reason": None, "ingredients": [{
+        "rawName": "Cá thu kho", "canonicalHint": "Cá thu", "category": "SEAFOOD",
+        "state": "COOKED", "quantity": 2, "unit": "piece", "quantitySource": "COUNTED", "confidence": .95,
+    }]}
 
 
 class PantryImportSchemaTest(unittest.TestCase):
-    def test_accepts_closed_enum_food_payload(self):
-        result = _validate_and_normalize(food_payload())
+    def test_selects_a_separate_prompt_for_each_mode(self):
+        self.assertIn("fish", prompt_for("FOOD_IMAGE"))
+        self.assertIn("receipt", prompt_for("RECEIPT").lower())
+
+    def test_server_assigns_image_type_and_preserves_food_metadata(self):
+        result = normalize(food_payload(), "FOOD_IMAGE")
         self.assertEqual("FOOD_IMAGE", result["imageType"])
-        self.assertEqual("Trứng gà", result["ingredients"][0]["rawName"])
+        self.assertEqual("cá thu", result["ingredients"][0]["canonicalHint"])
+        self.assertEqual("COOKED", result["ingredients"][0]["state"])
 
-    def test_unknown_requires_reason_and_has_no_ingredients(self):
-        result = _validate_and_normalize({
-            "imageType": "UNKNOWN", "imageTypeConfidence": 0.2, "imageQuality": "LOW",
-            "reason": "BLURRY", "warnings": ["BLURRY"], "ingredients": [{"ignored": True}],
-        })
-        self.assertEqual([], result["ingredients"])
+    def test_quantity_is_removed_when_model_did_not_see_or_read_it(self):
+        payload = food_payload(); payload["ingredients"][0].update(quantity=4, quantitySource="NONE")
+        result = normalize(payload, "FOOD_IMAGE")
+        self.assertIsNone(result["ingredients"][0]["quantity"])
+        self.assertIn("NO_QUANTITY", result["ingredients"][0]["flags"])
 
-    def test_rejects_guessed_quantity_when_source_is_none(self):
-        payload = food_payload()
-        payload["ingredients"][0]["quantitySource"] = "NONE"
-        with self.assertRaises(ProviderOutputError):
-            _validate_and_normalize(payload)
+    def test_duplicate_items_are_merged_and_receipt_noise_is_removed(self):
+        payload = food_payload(); payload["ingredients"].append({**payload["ingredients"][0], "confidence": .5})
+        payload["ingredients"].append({"rawName": "TỔNG CỘNG", "canonicalHint": "tổng cộng", "category": "OTHER_FOOD", "state": "UNKNOWN", "quantity": None, "unit": None, "quantitySource": "NONE", "confidence": .9})
+        self.assertEqual(1, len(normalize(payload, "RECEIPT")["ingredients"]))
 
-    def test_rejects_unrecognised_enum(self):
-        payload = food_payload()
-        payload["ingredients"][0]["category"] = "PROTEIN"
-        with self.assertRaises(ProviderOutputError):
-            _validate_and_normalize(payload)
+    def test_low_confidence_and_wrong_quantity_source_are_flagged_not_dropped(self):
+        payload = food_payload(); payload["ingredients"][0].update(confidence=.4, quantitySource="PRINTED")
+        result = normalize(payload, "FOOD_IMAGE")
+        self.assertEqual({"LOW_CONFIDENCE", "ANOMALY"}, set(result["ingredients"][0]["flags"]))
 
+    def test_empty_result_requires_a_reason(self):
+        with self.assertRaises(ValueError): normalize({"ingredients": []}, "FOOD_IMAGE")
+        self.assertEqual([], normalize({"reason": "BLURRY", "ingredients": []}, "FOOD_IMAGE")["ingredients"])
+
+    def test_hard_model_is_used_for_a_small_result(self):
+        self.assertTrue(_needs_hard_model(normalize(food_payload(), "FOOD_IMAGE")))
+
+    def test_transient_503_retries_and_keeps_a_valid_result(self):
+        response = httpx.Response(503, request=httpx.Request("POST", "https://example.test"))
+        with patch("app.api.routes.pantry_import.call", new=AsyncMock(side_effect=[httpx.HTTPStatusError("busy", request=response.request, response=response), normalize(food_payload(), "FOOD_IMAGE")])):
+            result = asyncio.run(call_with_retry("model", b"image", "image/png", "FOOD_IMAGE", "key", 1000, "LOW", "MEDIA_RESOLUTION_HIGH"))
+        self.assertEqual("FOOD_IMAGE", result["imageType"])

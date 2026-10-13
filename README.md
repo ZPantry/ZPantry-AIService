@@ -45,6 +45,23 @@ and at most 50 extracted ingredients. Existing `/ai/analyze-receipt` and
 `data.items` shape. The Java backend remains responsible for catalog matching, quota, and pantry
 persistence.
 
+### Prompt and model configuration
+
+Food photos and receipts use separate system prompts from `prompts/food_image.txt` and
+`prompts/receipt.txt`; the provider no longer classifies the requested image type. The server returns
+the requested `imageType` for compatibility. Missing, `AUTO`, or unsupported type on the unified route
+falls back to `FOOD_IMAGE` and is logged without image data.
+
+Configure production models with `GEMINI_MODELS` (default:
+`gemini-3.6-flash,gemini-3.5-flash,gemini-3.1-flash-lite`) and optionally set `GEMINI_HARD_MODEL` for
+small/low-confidence results. `GEMINI_THINKING_LEVEL` defaults to `low` and
+`GEMINI_MEDIA_RESOLUTION` to `MEDIA_RESOLUTION_HIGH`. If a model rejects those optional Gemini 3
+controls, the service retries the same call without them and logs only the model name/event.
+
+Provider output is schema-validated, de-duplicated, and returned with `LOW_CONFIDENCE`, `NO_QUANTITY`,
+or `ANOMALY` flags. A low-confidence item is retained for review; catalog matching remains the Java
+backend's responsibility.
+
 ### Gemini resilience and diagnosis
 
 Image calls use up to three attempts for transient provider responses (429, 500, 503, 504), then
