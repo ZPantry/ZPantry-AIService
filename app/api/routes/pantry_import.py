@@ -202,7 +202,12 @@ def _payload(content: bytes, mime: str, expected: str, optional: dict[str, Any],
     generation = {"responseMimeType": "application/json", "maxOutputTokens": 4096, **optional}
     if strict_schema:
         generation["responseSchema"] = SCHEMA
-    return {"systemInstruction": {"parts": [{"text": prompt_for(expected)}]}, "contents": [{"parts": [{"inline_data": {"mime_type": mime, "data": base64.b64encode(content).decode()}}]}], "generationConfig": generation}
+    prompt = prompt_for(expected)
+    if not strict_schema:
+        # This is only used if the provider rejects responseSchema. It preserves the contract without
+        # repeating the full enum table in the normal prompt.
+        prompt += "\nReturn only a JSON object: {\"reason\": null or a reason code, \"ingredients\": [{\"rawName\": string, \"canonicalHint\": string, \"quantity\": number or null, \"unit\": string or null}]}. Never return prose or markdown."
+    return {"systemInstruction": {"parts": [{"text": prompt}]}, "contents": [{"parts": [{"inline_data": {"mime_type": mime, "data": base64.b64encode(content).decode()}}]}], "generationConfig": generation}
 
 
 def normalize(value: object, expected: str, lenient: bool = False) -> dict[str, Any]:

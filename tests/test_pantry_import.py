@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 
-from app.api.routes.pantry_import import _needs_hard_model, call_with_retry, config, normalize, prompt_for
+from app.api.routes.pantry_import import _needs_hard_model, _payload, call_with_retry, config, normalize, prompt_for
 
 
 def food_payload():
@@ -52,6 +52,10 @@ class PantryImportSchemaTest(unittest.TestCase):
         result = normalize({"ingredients": [{"rawName": "cá", "canonicalHint": "cá"}]}, "FOOD_IMAGE", lenient=True)
         self.assertEqual("OTHER_FOOD", result["ingredients"][0]["category"])
         self.assertIn("LOW_CONFIDENCE", result["ingredients"][0]["flags"])
+
+    def test_json_mode_fallback_includes_a_machine_readable_output_contract(self):
+        prompt = _payload(b"image", "image/png", "FOOD_IMAGE", {}, strict_schema=False)["systemInstruction"]["parts"][0]["text"]
+        self.assertIn("Return only a JSON object", prompt)
 
     def test_hard_model_is_used_for_a_small_result(self):
         self.assertTrue(_needs_hard_model(normalize(food_payload(), "FOOD_IMAGE")))
