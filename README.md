@@ -45,6 +45,20 @@ and at most 50 extracted ingredients. Existing `/ai/analyze-receipt` and
 `data.items` shape. The Java backend remains responsible for catalog matching, quota, and pantry
 persistence.
 
+### Gemini resilience and diagnosis
+
+Image calls use up to three attempts for transient provider responses (429, 500, 503, 504), then
+try the next stable model listed in `GEMINI_MODELS`. A per-model circuit opens after five consecutive
+failures for 30 seconds. Requests are concurrency-limited and successful results are cached by image
+digest plus expected type for ten minutes by default. The service logs model, attempt, HTTP status,
+bounded provider detail, latency, image byte count and expected type; it never logs image bytes or keys.
+
+Configure `GEMINI_MODELS`, `GEMINI_TIMEOUT_MS` (default 25000), `GEMINI_MAX_CONCURRENCY` (default 5),
+`GEMINI_QUEUE_TIMEOUT_MS` (default 3000), and `GEMINI_CACHE_TTL_SECONDS` (default 600). The Java
+caller timeout must exceed the total AI retry window and remain below the deployment gateway timeout.
+Run `python scripts/check-gemini.py` in the AI-service environment to safely print only each model's
+HTTP status.
+
 ## API Purpose
 
 ### GET `/ai/health`
