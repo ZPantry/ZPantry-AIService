@@ -92,6 +92,14 @@ Response `data`:
 }
 ```
 
+## Render keepalive
+
+`GET /ai/health` is a shallow liveness endpoint: it does not call Gemini or consume OCR quota.
+In a Render deployment, configure an external uptime monitor to call the backend's public
+`/health` endpoint every ten minutes. With `ZPANTRY_KEEPALIVE_ENABLED=true` on the backend, that
+active backend calls this AI health endpoint every ten minutes. A task scheduled inside a sleeping
+web service cannot wake that service, so the external backend monitor is still required.
+
 ### POST `/ai/recommend-meals`
 
 Dung de goi y mon an dua tren nguyen lieu user dang co va danh sach recipe ung vien do backend gui sang.
