@@ -8,18 +8,21 @@ import os
 import random
 import re
 import time
+from io import BytesIO
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from app.schemas.common_schema import ApiResponse
 
 router = APIRouter()
 log = logging.getLogger("uvicorn.error")
 MAX_BYTES = 10 * 1024 * 1024
+MAX_IMAGE_EDGE = int(os.getenv("GEMINI_MAX_IMAGE_EDGE", "1536"))
 SUPPORTED_TYPES = {"FOOD_IMAGE", "RECEIPT"}
 REASONS = {"BLURRY", "TOO_DARK", "NO_FOOD", "NOT_SUPPORTED", "UNCERTAIN"}
 CATEGORIES = {"MEAT", "SEAFOOD", "VEGETABLE", "FRUIT", "DAIRY_EGG", "GRAIN_STARCH", "SPICE_SAUCE", "OIL_FAT", "BEVERAGE", "SNACK_SWEET", "OTHER_FOOD"}
@@ -104,6 +107,7 @@ async def analyze(image: UploadFile, expected: str) -> dict[str, Any]:
     content = await image.read(MAX_BYTES + 1)
     if not content or len(content) > MAX_BYTES:
         raise HTTPException(413, "Image must not exceed 10 MB.")
+    content, mime = resize_for_gemini(content, image.content_type)
     key = os.getenv("GEMINI_API_KEY")
     if not key:
         raise _error("AI_UNAVAILABLE", "Image analysis provider is not configured.")
@@ -121,7 +125,7 @@ async def analyze(image: UploadFile, expected: str) -> dict[str, Any]:
     except TimeoutError:
         raise _error("AI_UNAVAILABLE", "Image analysis provider is busy.")
     try:
-        result, used_model = await _call_models(models, content, image.content_type, expected, key, timeout, thinking, resolution)
+        result, used_model = await _call_models(models, content, mime, expected, key, timeout, thinking, resolution)
         if hard_model and hard_model not in models and _needs_hard_model(result):
             try:
                 harder = await call_with_retry(hard_model, content, image.content_type, expected, key, timeout, thinking, resolution)
@@ -138,6 +142,24 @@ async def analyze(image: UploadFile, expected: str) -> dict[str, Any]:
         raise _error("AI_UNAVAILABLE", "Image analysis provider is temporarily unavailable.")
     finally:
         _semaphore.release()
+
+
+def resize_for_gemini(content: bytes, mime: str) -> tuple[bytes, str]:
+    """Bounds provider input while preserving orientation; invalid image bytes remain validation errors."""
+    try:
+        with Image.open(BytesIO(content)) as source:
+            image = ImageOps.exif_transpose(source)
+            if max(image.size) <= MAX_IMAGE_EDGE:
+                return content, mime
+            image.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE), Image.Resampling.LANCZOS)
+            output = BytesIO()
+            if image.mode in {"RGBA", "LA"}:
+                image.save(output, format="PNG", optimize=True)
+                return output.getvalue(), "image/png"
+            image.convert("RGB").save(output, format="JPEG", quality=88, optimize=True)
+            return output.getvalue(), "image/jpeg"
+    except (UnidentifiedImageError, OSError) as exception:
+        raise HTTPException(400, "Image content is invalid.") from exception
 
 
 async def _call_models(models: tuple[str, ...], content: bytes, mime: str, expected: str, key: str, timeout: int, thinking: str, resolution: str) -> tuple[dict[str, Any], str]:

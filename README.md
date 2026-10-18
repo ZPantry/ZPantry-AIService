@@ -73,6 +73,8 @@ bounded provider detail, latency, image byte count and expected type; it never l
 Configure `GEMINI_MODELS`, `GEMINI_TIMEOUT_MS` (default 25000), `GEMINI_MAX_CONCURRENCY` (default 5),
 `GEMINI_QUEUE_TIMEOUT_MS` (default 3000), and `GEMINI_CACHE_TTL_SECONDS` (default 600). The Java
 caller timeout must exceed the total AI retry window and remain below the deployment gateway timeout.
+Images larger than `GEMINI_MAX_IMAGE_EDGE` (1536 pixels by default) are orientation-corrected and
+downscaled before hashing, caching, and sending to Gemini; the original image is never stored.
 Run `python scripts/check-gemini.py` in the AI-service environment to safely print only each model's
 HTTP status.
 
