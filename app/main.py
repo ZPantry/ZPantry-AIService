@@ -33,7 +33,16 @@ async def log_request_metadata(request: Request, call_next):
         request.headers.get("content-type"),
         request.headers.get("content-length"),
     )
-    return await call_next(request)
+    if request.method == "OPTIONS" and request.url.path == "/ai/health":
+        from fastapi.responses import Response
+        return Response(status_code=204, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+        })
+    response = await call_next(request)
+    if request.url.path == "/ai/health":
+        response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
 
 app.include_router(health_router, prefix="/ai", tags=["health"])
 app.include_router(recommendation_router, prefix="/ai", tags=["recommendation"])

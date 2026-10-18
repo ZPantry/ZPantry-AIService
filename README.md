@@ -102,9 +102,12 @@ In a Render deployment, configure an external uptime monitor to call the backend
 active backend calls this AI health endpoint every three minutes. A task scheduled inside a sleeping
 web service cannot wake that service, so the external backend monitor is still required.
 
-To let the admin service-health screen read this public endpoint from a browser, set
-`AI_CORS_ALLOWED_ORIGINS` to comma-separated frontend origins, for example
-`https://zpantry.example.com`. Leave it unset when browser health monitoring is not required.
+Set `AI_CORS_ALLOWED_ORIGINS` to comma-separated frontend origins, for example
+`https://zpantry.example.com`, only when a browser needs access to other permitted AI GET routes.
+
+`GET /ai/health` additionally returns public, endpoint-scoped CORS headers so the public frontend
+health dashboard can check liveness without authentication. This exception applies only to the
+health route; it does not grant browser access to Gemini or pantry-analysis routes.
 
 ### POST `/ai/recommend-meals`
 
