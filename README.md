@@ -98,9 +98,13 @@ Response `data`:
 
 `GET /ai/health` is a shallow liveness endpoint: it does not call Gemini or consume OCR quota.
 In a Render deployment, configure an external uptime monitor to call the backend's public
-`/health` endpoint every ten minutes. With `ZPANTRY_KEEPALIVE_ENABLED=true` on the backend, that
-active backend calls this AI health endpoint every ten minutes. A task scheduled inside a sleeping
+`/health` endpoint every three minutes. With `ZPANTRY_KEEPALIVE_ENABLED=true` on the backend, that
+active backend calls this AI health endpoint every three minutes. A task scheduled inside a sleeping
 web service cannot wake that service, so the external backend monitor is still required.
+
+To let the admin service-health screen read this public endpoint from a browser, set
+`AI_CORS_ALLOWED_ORIGINS` to comma-separated frontend origins, for example
+`https://zpantry.example.com`. Leave it unset when browser health monitoring is not required.
 
 ### POST `/ai/recommend-meals`
 

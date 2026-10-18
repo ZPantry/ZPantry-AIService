@@ -1,6 +1,8 @@
 import logging
+import os
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.embedding import router as embedding_router
 from app.api.routes.health import router as health_router
@@ -9,6 +11,16 @@ from app.api.routes.pantry_import import router as pantry_import_router
 
 app = FastAPI(title="ZPantry AI Service", version="0.1.0")
 logger = logging.getLogger("uvicorn.error")
+
+allowed_origins = [value.strip() for value in os.getenv("AI_CORS_ALLOWED_ORIGINS", "").split(",") if value.strip()]
+if allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=allowed_origins,
+        allow_credentials=False,
+        allow_methods=["GET"],
+        allow_headers=[],
+    )
 
 
 @app.middleware("http")
