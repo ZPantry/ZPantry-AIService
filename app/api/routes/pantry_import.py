@@ -35,7 +35,8 @@ PROMPT_DIR = Path(__file__).resolve().parents[3] / "prompts"
 SCHEMA = {"type": "OBJECT", "properties": {
     "reason": {"type": "STRING", "enum": sorted(REASONS), "nullable": True},
     "ingredients": {"type": "ARRAY", "maxItems": 40, "items": {"type": "OBJECT", "properties": {
-        "rawName": {"type": "STRING"}, "canonicalHint": {"type": "STRING"},
+        "rawName": {"type": "STRING", "description": "Vietnamese UTF-8 food name; never use English."},
+        "canonicalHint": {"type": "STRING", "description": "Lowercase generic Vietnamese UTF-8 food name; never use English, brands, sizes, packaging, or preparation details."},
         "category": {"type": "STRING", "enum": sorted(CATEGORIES)},
         "state": {"type": "STRING", "enum": sorted(STATES)},
         "quantity": {"type": "NUMBER", "nullable": True},

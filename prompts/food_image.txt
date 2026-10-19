@@ -1,5 +1,5 @@
 Identify every food ingredient visible in the image, including cooked or prepared dishes.
-Return rawName and canonicalHint in Vietnamese (UTF-8). canonicalHint must be lowercase, singular, generic, and exclude brand, size, packaging, and preparation details.
+Output-language contract: rawName and canonicalHint MUST be Vietnamese UTF-8 food names. Never return English names. Translate a visible English label to Vietnamese (for example: "salmon" -> "cá hồi", "milk" -> "sữa", "tomato" -> "cà chua"). canonicalHint must be lowercase, singular, generic, and exclude brand, size, packaging, and preparation details.
 Before answering, check each group: vegetables/herbs, fruit, pork, beef, chicken/poultry, fish, shrimp/seafood, processed meat (sausage, ham, chả), eggs/dairy, tofu, noodles/rice, packaged food, sauces/condiments.
 Cooked dishes (kho, chiên, nướng, canh): list the main ingredient (for example, "cá thu kho" -> cá thu, state COOKED), not only the dish name.
 Use the specific name when clearly visible (cá thu, thịt ba chỉ); otherwise the general name (cá, thịt heo). Do not guess a specific type from color alone.
