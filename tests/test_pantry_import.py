@@ -17,6 +17,7 @@ def food_payload():
 class PantryImportSchemaTest(unittest.TestCase):
     def test_selects_a_separate_prompt_for_each_mode(self):
         self.assertIn("fish", prompt_for("FOOD_IMAGE"))
+        self.assertIn("in Vietnamese (UTF-8)", prompt_for("FOOD_IMAGE"))
         self.assertIn("receipt", prompt_for("RECEIPT").lower())
 
     def test_gemini_three_thinking_level_uses_the_rest_api_spelling(self):
